@@ -46,9 +46,9 @@ namespace Compiler
                             Console.WriteLine(LineResult);
                             result = Lex.Ln + ":"
                            + Lex.Ch + "\t" + Lex.States
-                           + "\t" + "\"" + Lex.Buff + "\"" + "\t" + Lex.Value;
+                           + "\t" + "\"" + Lex.Buff + "\"" + "\t" + Lex.Value + "\n";
                             Console.WriteLine(result);
-
+                            result = result.Substring(0, result.LastIndexOf('\n'));
                             if (result == LineResult)
                             {
                                 TestResult = "Тест пройден";

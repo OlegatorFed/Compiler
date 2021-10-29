@@ -1,0 +1,13 @@
+program
+var
+integer
+real
+end
+if
+then
+while
+do
+read
+write
+true
+false

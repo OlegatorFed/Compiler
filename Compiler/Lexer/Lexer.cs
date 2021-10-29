@@ -19,7 +19,8 @@ namespace Compiler
         
         private string[] ReserveWords = { "program", "var", "integer", "real", "bool", "begin",
             "end", "if", "then", "else", "while", "do", "read", "write", "true", "false" };
-        private string[] Operators = { "*", "/", "div", "mod", "and", "or", "+", "-", "=", "<", 
+        private string[] Operators = {
+            "*", "/", "div", "mod", "and", "or", "+", "-", "=", "<", 
             ">", "<>", "<=", ">=", "in", "not"};
         private string[] Separators = { ";", ".", ":",",","..","[","]","(",")"};
         private string[] Assigments = { ":=", "/=", "*=", "+=","-="};
@@ -261,8 +262,8 @@ namespace Compiler
 
                     case State.Separator:
                         if (Separators.Contains(buf)
-                            && (!Separators.Contains(sm[0].ToString()) || sm[0] == ';' || sm[0] == '.')
-                            && (SpaceSymbols.Contains(sm[0].ToString()) 
+                            && (!Separators.Contains(sm[0].ToString()) || sm[0] == ';' || sm[0] == '.' || sm[0] == '\'')
+                            && ((SpaceSymbols.Contains(sm[0].ToString()) || sm[0] == '\'')
                             || Char.IsLetterOrDigit(sm[0])
                             ||( Operators.Contains(sm[0].ToString()) && sm[0] != '=')))
                         {
@@ -290,7 +291,7 @@ namespace Compiler
                         break;
 
                     case State.Real:
-                        if (SpaceSymbols.Contains(sm[0].ToString()))
+                        if (SpaceSymbols.Contains(sm[0].ToString()) && buf[buf.Length - 1] != '.')
                         {
                             AddValue();
                             AddLexName();
@@ -426,11 +427,12 @@ namespace Compiler
                             string value = null;
                             AddBuf(sm[0]);
                             //Value = buf.Trim(new Char[] { '\'' });
+                            AddValue();
                             AddLexName();
                             state = State.Start;
                             NotFoundLexem = false;
                             GetNext();
-                            if (sm[0] != '#' && buf[buf.Length -1] == '\'')
+                            /*if (sm[0] != '#' && buf[buf.Length -1] == '\'')
                             {
                                 NotFoundLexem = true;
                                 Regex regex = new Regex(@"#\d+");
@@ -440,8 +442,8 @@ namespace Compiler
                                     return ((char)res).ToString();
 
                                 });
-
-                                value = Regex.Replace(value, "'", "");
+                                */
+                            value = Value.Replace("'", "");
                                // value = $"'{value}'";
 
                                 SetLexema(new Lexema(Ln, Ch, LexName, buf, value));
@@ -449,7 +451,7 @@ namespace Compiler
                                
                               
 
-                            }
+                            /*}
                             else if( buf[buf.Length - 1] == '\'')
                             {
                                 SetLexema(new Lexema(Ln, Ch, LexName, buf, value));
@@ -461,7 +463,7 @@ namespace Compiler
                                 AddBuf(sm[0]);
                                 GetNext();
                                 state = State.CtrlString;
-                            }
+                            }*/
                         }
                         else if (Reader.PeekChar() != -1)
                         {
@@ -519,7 +521,7 @@ namespace Compiler
                             GetNext();
                             state = State.CtrlString;
                         }
-                        else if (sm[0] == '\'')
+                        else if (sm[0] == '\'' && buf[0] == '\'')
                         {
                             AddBuf(sm[0]);
                             GetNext();
