@@ -23,15 +23,15 @@ namespace Compiler
             "*", "/", "div", "mod", "and", "or", "+", "-", "=", "<", 
             ">", "<>", "<=", ">=", "in", "not"};
         private string[] Separators = { ";", ".", ":",",","..","[","]","(",")"};
-        private string[] Assigments = { ":=", "/=", "*=", "+=","-="};
+        private string[] Assigments = { ":=", "/=", "*=", "+=","-="};   
         private string[] SpaceSymbols = { " ", "\r", "\n", "\0", "\t", ",",":",";"};
-
+         
         IFormatProvider formatter = new NumberFormatInfo { NumberDecimalSeparator = "." };
 
         string Value = "";
 
         public enum State { Start, Number, Identifier, ChoiceLex, ArOperator,
-            ReserveWords, Separator, Integer, Real,RealExp,String,Assignment,
+            ReserveWords, Separator, Integer, Hex, Oct, Bin, Real,RealExp,String,Assignment,
             BlockComment,StringComment,CtrlString, Error}
 
         State state;
@@ -41,6 +41,8 @@ namespace Compiler
         int ChCounter = 0;
         string LexName;
         char SaveSymbol = '\0';
+
+        string errorText;
 
         public bool NotEof = true;
         public bool NotFoundLexem = true;
@@ -111,6 +113,7 @@ namespace Compiler
 
          public Lexema GetLexem()
          {
+            errorText = "";
             ClearBuf();
             NotEof = true;
             while (NotFoundLexem || NotEof)
@@ -150,6 +153,27 @@ namespace Compiler
                             ClearBuf();
                             AddBuf(sm[0]);
                             state = State.Number;
+                            GetNext();
+                        }
+                        else if (sm[0] == '$')
+                        {
+                            ClearBuf();
+                            AddBuf(sm[0]);
+                            state = State.Hex;
+                            GetNext();
+                        }
+                        else if (sm[0] == '&')
+                        {
+                            ClearBuf();
+                            AddBuf(sm[0]);
+                            state = State.Oct;
+                            GetNext();
+                        }
+                        else if (sm[0] == '%')
+                        {
+                            ClearBuf();
+                            AddBuf(sm[0]);
+                            state = State.Bin;
                             GetNext();
                         }
                         else if (Separators.Contains(sm[0].ToString()))
@@ -260,6 +284,83 @@ namespace Compiler
                         }
                         break;
 
+                    case State.Hex:
+                        if  ((SpaceSymbols.Contains(sm[0].ToString()) || Separators.Contains(sm[0].ToString()))
+                            && buf[buf.Length - 1] != '$' )
+                        {
+                            AddValue();
+                            Value = Value.Substring(1).TrimStart(new char[] { '0' });
+                            AddLexName();
+                            state = State.Start;
+                            NotFoundLexem = false;
+                            SetLexema(new Lexema(Ln, Ch, LexName, buf, Value));
+                            return GetCurrentLexema();
+                        }
+                        else if (Char.IsDigit(sm[0]))
+                        {
+                            AddBuf(sm[0]);
+                            GetNext();   
+                            
+                        }
+                        else if (Regex.IsMatch(sm[0].ToString(), @"[a-fA-F]+"))
+                        {
+                            AddBuf(Char.ToUpper(sm[0]));
+                            GetNext();
+                        }
+                        else
+                        {
+                            state = State.Error;
+                        }
+
+                        break;
+
+                    case State.Oct:
+                        if ((SpaceSymbols.Contains(sm[0].ToString()) || Separators.Contains(sm[0].ToString()))
+                            && buf[buf.Length - 1] != '&')
+                        {
+                            AddValue();
+                            AddLexName();
+                            state = State.Start;
+                            NotFoundLexem = false;
+                            SetLexema(new Lexema(Ln, Ch, LexName, buf, Value));
+                            return GetCurrentLexema();
+                        }
+                        else if (Regex.IsMatch(sm[0].ToString(), @"[0-7]+"))
+                        {
+                            AddBuf(sm[0]);
+                            GetNext();
+                        }
+                        else
+                        {
+                            state = State.Error;
+                        }
+
+                        break;
+
+                    case State.Bin:
+                        if ((SpaceSymbols.Contains(sm[0].ToString()) || Separators.Contains(sm[0].ToString()))
+                            && buf[buf.Length - 1] != '%')
+                        {
+                            AddValue();
+                            AddLexName();
+                            state = State.Start;
+                            NotFoundLexem = false;
+                            SetLexema(new Lexema(Ln, Ch, LexName, buf, Value));
+                            return GetCurrentLexema();
+                        }
+                        else if (Regex.IsMatch(sm[0].ToString(), @"[0-1]+"))
+                        {
+                            AddBuf(sm[0]);
+                            GetNext();
+
+                        }
+                        else
+                        {
+                            state = State.Error;
+                        }
+
+                        break;
+
                     case State.Separator:
                         if (Separators.Contains(buf)
                             && (!Separators.Contains(sm[0].ToString()) || sm[0] == ';' || sm[0] == '.' || sm[0] == '\'')
@@ -291,7 +392,7 @@ namespace Compiler
                         break;
 
                     case State.Real:
-                        if (SpaceSymbols.Contains(sm[0].ToString()) && buf[buf.Length - 1] != '.')
+                        if ((SpaceSymbols.Contains(sm[0].ToString()) || Separators.Contains(sm[0].ToString())) && buf[buf.Length - 1] != '.')
                         {
                             AddValue();
                             AddLexName();
@@ -340,7 +441,14 @@ namespace Compiler
                             AddBuf(sm[0]);
                             GetNext();
                         }
-                        else if (float.TryParse(buf, NumberStyles.Float, formatter, out float y) )
+                        else if ( Char.IsLetter(sm[0]) 
+                            || (SpaceSymbols.Contains(sm[0].ToString()) && Operators.Contains(buf[buf.Length - 1].ToString())) 
+                            || (SpaceSymbols.Contains(sm[0].ToString()) && buf[buf.Length - 1] == 'e'))
+                        {
+                            errorText = "wrong node type";
+                            state = State.Error;
+                        }
+                        else if (float.TryParse(buf, NumberStyles.Float, formatter, out float y))
                         {
                             Value = Convert.ToString(float.Parse(buf, formatter));
                             AddLexName();
@@ -351,6 +459,7 @@ namespace Compiler
                         }
                         else
                         {
+                            errorText = "overflow";
                             state = State.Error;
                         }
                         break;
@@ -503,7 +612,7 @@ namespace Compiler
                             GetNext();
                             state = State.Start;
                         }
-                        else if (Reader.PeekChar() != -1)
+                        else if (sm[0] != '\n')
                         {
                             AddBuf(sm[0]);
                             GetNext();
@@ -570,7 +679,7 @@ namespace Compiler
                         AddLexName();
                         state = State.Start;
                         GetNext();
-                        Errors("syntax error: "+ buf);
+                        Errors("syntax error: "+ errorText + "; " + buf);
                         break;
                 }
             }
